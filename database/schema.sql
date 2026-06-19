@@ -1,103 +1,216 @@
--- =============================================================
--- FAQFusion AI — MySQL Schema
--- =============================================================
--- Run this script against your MySQL server to create the
--- database and tables before starting the Flask application.
---
--- Usage:
---   mysql -u root -p < database/schema.sql
---
--- Note: SQLAlchemy's db.create_all() can also create these
--- tables automatically, but this script is provided for
--- manual setup, migrations, and reference.
--- =============================================================
-
 CREATE DATABASE IF NOT EXISTS faqfusion_db
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
 
 USE faqfusion_db;
 
--- -------------------------------------------------------------
--- Admins
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS admins (
-    id              INT AUTO_INCREMENT PRIMARY KEY,
-    username        VARCHAR(80)  NOT NULL UNIQUE,
-    email           VARCHAR(120) NOT NULL UNIQUE,
-    password_hash   VARCHAR(256) NOT NULL,
-    role            VARCHAR(30)  NOT NULL DEFAULT 'moderator',
-    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                 ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_admins_username (username),
-    INDEX idx_admins_email    (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- =============================================================
+-- ADMINS
+-- =============================================================
+CREATE TABLE admins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
 
--- -------------------------------------------------------------
--- Users
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS users (
-    id              INT AUTO_INCREMENT PRIMARY KEY,
-    username        VARCHAR(80)  NOT NULL UNIQUE,
-    email           VARCHAR(120) NOT NULL UNIQUE,
-    password_hash   VARCHAR(256) NOT NULL,
-    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                 ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_users_username (username),
-    INDEX idx_users_email    (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    username VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
 
--- -------------------------------------------------------------
--- FAQs
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS faqs (
-    id              INT AUTO_INCREMENT PRIMARY KEY,
-    question        TEXT         NOT NULL,
-    answer          TEXT         NOT NULL,
-    category        VARCHAR(100) NULL,
-    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_by      INT          NULL,
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                 ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_faqs_category  (category),
-    CONSTRAINT fk_faqs_created_by
-        FOREIGN KEY (created_by) REFERENCES admins(id)
-        ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    role ENUM('super_admin','admin','moderator')
+        NOT NULL DEFAULT 'moderator',
 
--- -------------------------------------------------------------
--- Questions
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS questions (
-    id               INT AUTO_INCREMENT PRIMARY KEY,
-    question_text    TEXT         NOT NULL,
-    answer_text      TEXT         NULL,
-    status           VARCHAR(20)  NOT NULL DEFAULT 'pending',
-    similarity_score FLOAT        NULL,
-    matched_faq_id   INT          NULL,
-    user_id          INT          NOT NULL,
-    created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                  ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_questions_status  (status),
-    CONSTRAINT fk_questions_matched_faq
-        FOREIGN KEY (matched_faq_id) REFERENCES faqs(id)
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_admin_username (username),
+    INDEX idx_admin_email (email)
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- USERS
+-- =============================================================
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    username VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(120) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_user_username (username),
+    INDEX idx_user_email (email)
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- FAQ CATEGORIES
+-- =============================================================
+CREATE TABLE faq_categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- FAQS
+-- =============================================================
+CREATE TABLE faqs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+
+    category_id INT NULL,
+
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    view_count INT NOT NULL DEFAULT 0,
+
+    created_by INT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    deleted_at DATETIME NULL,
+
+    FULLTEXT(question, answer),
+
+    CONSTRAINT fk_faq_category
+        FOREIGN KEY (category_id)
+        REFERENCES faq_categories(id)
         ON DELETE SET NULL,
-    CONSTRAINT fk_questions_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- -------------------------------------------------------------
--- Seed: Default super admin (password: Admin@123)
--- The hash below is generated by Werkzeug's pbkdf2:sha256.
--- In production, create admins via a CLI command instead.
--- -------------------------------------------------------------
--- INSERT INTO admins (username, email, password_hash, role)
--- VALUES ('superadmin', 'admin@faqfusion.ai',
---         'pbkdf2:sha256:600000$...hashed...', 'super_admin');
+    CONSTRAINT fk_faq_created_by
+        FOREIGN KEY (created_by)
+        REFERENCES admins(id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- FAQ ALIASES
+-- Similar questions for matching/search
+-- =============================================================
+CREATE TABLE faq_aliases (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    faq_id INT NOT NULL,
+
+    alias_question TEXT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_alias_faq
+        FOREIGN KEY (faq_id)
+        REFERENCES faqs(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- USER QUESTIONS
+-- =============================================================
+CREATE TABLE questions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    user_id INT NOT NULL,
+
+    question_text TEXT NOT NULL,
+
+    answer_text TEXT NULL,
+
+    status ENUM(
+        'pending',
+        'answered',
+        'rejected'
+    ) NOT NULL DEFAULT 'pending',
+
+    similarity_score FLOAT NULL,
+
+    matched_faq_id INT NULL,
+
+    resolved_by_admin INT NULL,
+
+    resolved_at DATETIME NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_question_status (status),
+
+    CONSTRAINT fk_question_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_question_faq
+        FOREIGN KEY (matched_faq_id)
+        REFERENCES faqs(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_question_admin
+        FOREIGN KEY (resolved_by_admin)
+        REFERENCES admins(id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- QUESTION FEEDBACK
+-- =============================================================
+CREATE TABLE question_feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    question_id INT NOT NULL,
+    user_id INT NOT NULL,
+
+    is_helpful BOOLEAN NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_feedback_question
+        FOREIGN KEY (question_id)
+        REFERENCES questions(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_feedback_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+
+-- =============================================================
+-- AUDIT LOGS
+-- =============================================================
+CREATE TABLE audit_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    admin_id INT NULL,
+
+    action VARCHAR(100) NOT NULL,
+
+    entity_type VARCHAR(50) NOT NULL,
+
+    entity_id INT NOT NULL,
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_audit_admin
+        FOREIGN KEY (admin_id)
+        REFERENCES admins(id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB;
