@@ -138,7 +138,7 @@ CREATE TABLE questions (
         'rejected'
     ) NOT NULL DEFAULT 'pending',
 
-    similarity_score FLOAT NULL,
+    similarity_score DECIMAL(4,2) NULL,
 
     matched_faq_id INT NULL,
 
