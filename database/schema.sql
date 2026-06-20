@@ -190,7 +190,9 @@ CREATE TABLE question_feedback (
     CONSTRAINT fk_feedback_user
         FOREIGN KEY (user_id)
         REFERENCES users(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    
+    UNIQUE KEY uq_feedback (question_id , user_id)
 ) ENGINE=InnoDB;
 
 
