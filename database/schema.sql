@@ -217,3 +217,19 @@ CREATE TABLE audit_logs (
         REFERENCES admins(id)
         ON DELETE SET NULL
 ) ENGINE=InnoDB;
+-- =============================================================
+-- FAQ EMBEDDINGS
+-- =============================================================
+CREATE TABLE faq_embeddings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    faq_id INT NOT NULL,
+
+    embedding JSON NOT NULL,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (faq_id)
+    REFERENCES faqs(id)
+    ON DELETE CASCADE
+);
