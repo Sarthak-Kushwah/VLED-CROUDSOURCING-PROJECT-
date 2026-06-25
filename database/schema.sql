@@ -227,9 +227,12 @@ CREATE TABLE faq_embeddings (
 
     embedding JSON NOT NULL,
 
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (faq_id)
-    REFERENCES faqs(id)
-    ON DELETE CASCADE
-);
+    INDEX idx_embedding_faq (faq_id),
+
+    CONSTRAINT fk_embedding_faq
+        FOREIGN KEY (faq_id)
+        REFERENCES faqs(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
